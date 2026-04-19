@@ -17,6 +17,8 @@ from io import BytesIO
 import sqlite3
 import json
 from functools import lru_cache
+import subprocess
+import sys
 
 # ========== CONFIGURACIÓN DE PÁGINA ==========
 st.set_page_config(page_title="Contract AI Assistant - Professional", layout="wide", page_icon="⚖️", initial_sidebar_state="expanded")
@@ -49,6 +51,21 @@ else:
 
 st.markdown('<h1 style="text-align: center;">⚖️ Contract AI Assistant <span style="font-size: 0.6rem;">Professional</span></h1>', unsafe_allow_html=True)
 st.markdown("---")
+
+# ========== DESCARGA AUTOMÁTICA DEL MODELO spaCY ==========
+@st.cache_resource
+def load_nlp():
+    try:
+        return spacy.load("es_core_news_sm")
+    except OSError:
+        with st.spinner("Descargando modelo de lenguaje español (solo la primera vez)... puede tomar un minuto."):
+            subprocess.run([sys.executable, "-m", "spacy", "download", "es_core_news_sm"])
+            return spacy.load("es_core_news_sm")
+    except Exception as e:
+        st.error(f"Error al cargar el modelo de lenguaje: {e}")
+        return None
+
+nlp = load_nlp()
 
 # ========== BASE DE DATOS (HISTORIAL) CON MIGRACIÓN ==========
 DB_PATH = "contract_ai.db"
@@ -118,16 +135,6 @@ def load_full_analysis(analysis_id):
             "clauses": json.loads(row[5])
         }
     return None
-
-# ========== MODELO NLP ==========
-@st.cache_resource
-def load_nlp():
-    try:
-        return spacy.load("es_core_news_sm")
-    except OSError:
-        st.error("Modelo de idioma español no encontrado. Ejecuta: python -m spacy download es_core_news_sm")
-        return None
-nlp = load_nlp()
 
 # ========== FUNCIONES AUXILIARES ==========
 STOP_ENTITIES = {
