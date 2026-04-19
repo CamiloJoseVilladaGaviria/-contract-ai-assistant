@@ -1,22 +1,18 @@
 import streamlit as st
 import pdfplumber
 from docx import Document
-from docx.shared import Inches
 import re
 import spacy
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib import colors
 from io import BytesIO
-import sqlite3
-import json
-from functools import lru_cache
 import subprocess
 import sys
 
@@ -34,7 +30,6 @@ if st.session_state.theme == "dark":
     st.markdown("""
     <style>
     .stApp { background-color: #0E1117; color: #FAFAFA; }
-    .css-1d391kg { background-color: #1E1E1E; }
     .risk-low { background-color: #22C55E; padding: 0.2rem 1rem; border-radius: 20px; color: black; display: inline-block; }
     .risk-medium { background-color: #EAB308; padding: 0.2rem 1rem; border-radius: 20px; color: black; display: inline-block; }
     .risk-high { background-color: #EF4444; padding: 0.2rem 1rem; border-radius: 20px; color: white; display: inline-block; }
@@ -66,75 +61,6 @@ def load_nlp():
         return None
 
 nlp = load_nlp()
-
-# ========== BASE DE DATOS (HISTORIAL) CON MIGRACIÓN ==========
-DB_PATH = "contract_ai.db"
-
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS history
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  filename TEXT,
-                  date TEXT,
-                  summary TEXT,
-                  risk_level TEXT,
-                  risk_score REAL,
-                  parties TEXT,
-                  key_dates TEXT,
-                  clauses TEXT)''')
-    c.execute("PRAGMA table_info(history)")
-    columns = [col[1] for col in c.fetchall()]
-    if 'risk_score' not in columns:
-        c.execute("ALTER TABLE history ADD COLUMN risk_score REAL DEFAULT 0")
-    if 'clauses' not in columns:
-        c.execute("ALTER TABLE history ADD COLUMN clauses TEXT DEFAULT '[]'")
-    conn.commit()
-    conn.close()
-
-init_db()
-
-def clear_history():
-    """Elimina todos los registros del historial."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("DELETE FROM history")
-    conn.commit()
-    conn.close()
-    st.session_state.history_cleared = True
-
-def save_analysis(filename, summary, risk_level, risk_score, parties, key_dates, clauses):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("INSERT INTO history (filename, date, summary, risk_level, risk_score, parties, key_dates, clauses) VALUES (?,?,?,?,?,?,?,?)",
-              (filename, datetime.now().isoformat(), summary[:500], risk_level, risk_score, json.dumps(parties), json.dumps(key_dates), json.dumps(clauses)))
-    conn.commit()
-    conn.close()
-
-def load_history():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT id, filename, date, risk_level, risk_score FROM history ORDER BY date DESC LIMIT 20")
-    data = c.fetchall()
-    conn.close()
-    return data
-
-def load_full_analysis(analysis_id):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT summary, risk_level, risk_score, parties, key_dates, clauses FROM history WHERE id=?", (analysis_id,))
-    row = c.fetchone()
-    conn.close()
-    if row:
-        return {
-            "summary": row[0],
-            "risk_level": row[1],
-            "risk_score": row[2],
-            "parties": json.loads(row[3]),
-            "key_dates": json.loads(row[4]),
-            "clauses": json.loads(row[5])
-        }
-    return None
 
 # ========== FUNCIONES AUXILIARES ==========
 STOP_ENTITIES = {
@@ -358,20 +284,6 @@ def generate_docx(summary, metadata, details):
     return buffer.getvalue()
 
 # ========== INTERFAZ PRINCIPAL ==========
-with st.sidebar:
-    st.header("📁 Historial")
-    history = load_history()
-    if history:
-        for h in history:
-            st.write(f"📄 {h[1]} - {h[2][:10]} ({h[3]}, {h[4]:.0f}/100)")
-        if st.button("🗑️ Limpiar historial"):
-            clear_history()
-            st.rerun()
-    else:
-        st.info("Aún no hay análisis.")
-    st.markdown("---")
-    st.caption("Contract AI Assistant Professional | NLP con spaCy")
-
 uploaded = st.file_uploader("📂 Sube tu contrato (PDF, DOCX o TXT)", type=["pdf", "docx", "txt"])
 
 if uploaded:
@@ -389,10 +301,7 @@ if uploaded:
         with st.spinner("Analizando con IA..."):
             analysis, details = analyze_contract(text)
         if analysis:
-            parties = details["entities"].get("PER", [])
-            dates_str = [d.strftime("%Y-%m-%d") for d in details.get("dates", [])]
-            save_analysis(filename, analysis, details["risk_level"], details["risk_score"], parties, dates_str, list(details["risk_clauses"].keys()))
-            
+            # Mostrar resultados con pestañas
             tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Resumen", "⚖️ Cláusulas", "📅 Fechas y montos", "📊 Dashboard", "📈 Comparar"])
             with tab1:
                 st.markdown(analysis, unsafe_allow_html=True)
