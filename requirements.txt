@@ -1,0 +1,9 @@
+streamlit
+pdfplumber
+python-docx
+spacy
+plotly
+reportlab
+pandas
+markdown
+tornado
