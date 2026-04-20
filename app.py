@@ -17,7 +17,7 @@ import subprocess
 import sys
 
 # ========== CONFIGURACIÓN DE PÁGINA ==========
-st.set_page_config(page_title="Contract AI Assistant - Professional", layout="wide", page_icon="⚖️", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Contract & Tender AI Assistant", layout="wide", page_icon="⚖️", initial_sidebar_state="expanded")
 
 # ========== TEMA OSCURO/CLARO ==========
 if "theme" not in st.session_state:
@@ -44,7 +44,9 @@ else:
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown('<h1 style="text-align: center;">⚖️ Contract AI Assistant <span style="font-size: 0.6rem;">Professional</span></h1>', unsafe_allow_html=True)
+st.markdown('<h1 style="text-align: center;">⚖️ Contract & Tender AI Assistant <span style="font-size: 0.6rem;">Professional</span></h1>', unsafe_allow_html=True)
+st.markdown("---")
+st.markdown("""<p style='text-align: center;'>Analiza contratos, pliegos de condiciones, términos de referencia y documentos de licitación.<br>Detecta partes, fechas, montos, cláusulas de riesgo y secciones críticas de procesos licitatorios.</p>""", unsafe_allow_html=True)
 st.markdown("---")
 
 # ========== DESCARGA AUTOMÁTICA DEL MODELO spaCY ==========
@@ -114,7 +116,9 @@ def extract_dates(text):
         r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',
         r'\b\d{1,2}\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+\d{4}\b',
         r'\b(?:vigencia|término|vencimiento|fecha de inicio|fecha de finalización)[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
-        r'\b(?:a partir del|desde el|hasta el)\s+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})'
+        r'\b(?:a partir del|desde el|hasta el)\s+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
+        # Fechas típicas en licitaciones
+        r'\b(?:apertura|cierre|presentación de propuestas|audiencia|adjudicación)[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})'
     ]
     dates = []
     for pattern in date_patterns:
@@ -174,7 +178,9 @@ def analyze_contract(text):
     for k in entities:
         entities[k] = list(set(entities[k]))[:5]
     
+    # Palabras clave para contratos y para licitaciones (se unifican)
     risk_keywords = {
+        # Contratos
         "confidencialidad": r"confidencial|secreto|no divulgación",
         "indemnización": r"indemniz[aá]|responsabilidad|daños y perjuicios",
         "resolución anticipada": r"resolución anticipada|terminación adelantada|incumplimiento grave",
@@ -189,7 +195,20 @@ def analyze_contract(text):
         "fuerza mayor": r"fuerza mayor|caso fortuito",
         "rescisión": r"rescisión|rescindir|dar por terminado",
         "plazo": r"plazo\s+(?:de\s+)?(\d+\s*(?:días|meses|años))",
-        "precio": r"precio\s+(?:total|mensual|anual)[:\s]*\$?\s*[\d,]+"
+        "precio": r"precio\s+(?:total|mensual|anual)[:\s]*\$?\s*[\d,]+",
+        # Licitaciones (pliegos, términos de referencia)
+        "requisitos habilitantes": r"requisitos habilitantes|habilitación jurídica|habilitación financiera|habilitación técnica",
+        "criterios de evaluación": r"criterios de evaluación|evaluación de propuestas|ponderación|puntaje|calificación",
+        "cronograma": r"cronograma|calendario|etapas del proceso|fechas clave",
+        "garantías de seriedad": r"garantía de seriedad|garantía de cumplimiento|garantía de anticipo",
+        "anexos": r"anexos|apéndices|formatos",
+        "pliego de condiciones": r"pliego de condiciones|términos de referencia|documentos del proceso",
+        "propuesta técnica": r"propuesta técnica|oferta técnica|metodología",
+        "propuesta económica": r"propuesta económica|oferta económica|presupuesto",
+        "audiencia": r"audiencia de aclaración|audiencia de cierre|reunión informativa",
+        "adjudicación": r"adjudicación|fallo|selección del contratista",
+        "impugnación": r"impugnación|recurso|queja|reclamación",
+        "subsanación": r"subsanación|aclaración de documentos|corrección"
     }
     
     paragraphs = re.split(r'\n\s*\n|\.\s+', text)
@@ -213,6 +232,7 @@ def analyze_contract(text):
     else:
         risk_level = "bajo"
     
+    # Resumen ejecutivo
     summary = "**Resumen Ejecutivo**\n\n"
     if entities["PER"]:
         summary += f"👥 **Partes involucradas:** {', '.join(entities['PER'][:5])}\n\n"
@@ -225,7 +245,7 @@ def analyze_contract(text):
     risk_emoji = "🟢" if risk_level == "bajo" else "🟡" if risk_level == "medio" else "🔴"
     summary += f"{risk_emoji} **Nivel de riesgo:** {risk_level.upper()} (puntuación: {risk_score}/100)\n\n"
     if risk_clauses:
-        summary += "**⚖️ Cláusulas críticas detectadas:**\n"
+        summary += "**⚖️ Cláusulas y secciones críticas detectadas:**\n"
         for clause, ctx in risk_clauses.items():
             summary += f"- **{clause.capitalize()}**: {ctx[0][:120]}...\n"
     else:
@@ -233,7 +253,7 @@ def analyze_contract(text):
     
     return summary, {"entities": entities, "risk_clauses": risk_clauses, "risk_level": risk_level, "risk_score": risk_score, "dates": dates}
 
-# ========== FUNCIONES DE EXPORTACIÓN ==========
+# ========== FUNCIONES DE EXPORTACIÓN (sin cambios) ==========
 def generate_pdf(summary, metadata, details):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -246,7 +266,7 @@ def generate_pdf(summary, metadata, details):
     clean = clean.replace('\n\n', '<br/><br/>')
     
     story = []
-    story.append(Paragraph("Contract AI Assistant - Informe Legal", title_style))
+    story.append(Paragraph("Contract & Tender AI Assistant - Informe Legal", title_style))
     story.append(Spacer(1, 12))
     story.append(Paragraph(clean, normal_style))
     story.append(Spacer(1, 12))
@@ -254,7 +274,7 @@ def generate_pdf(summary, metadata, details):
     data = [
         ["Nivel de riesgo", details["risk_level"].upper()],
         ["Puntuación de riesgo", f"{details['risk_score']}/100"],
-        ["Cláusulas críticas", str(len(details["risk_clauses"]))],
+        ["Cláusulas/secciones críticas", str(len(details["risk_clauses"]))],
         ["Partes detectadas", str(len(details["entities"].get("PER", [])))],
         ["Fechas encontradas", str(len(details.get("dates", [])))]
     ]
@@ -270,12 +290,12 @@ def generate_pdf(summary, metadata, details):
 
 def generate_docx(summary, metadata, details):
     doc = Document()
-    doc.add_heading('Contract AI Assistant - Informe Legal', 0)
+    doc.add_heading('Contract & Tender AI Assistant - Informe Legal', 0)
     doc.add_paragraph(summary.replace('**', ''))
     doc.add_paragraph(f"\nMétricas:")
     doc.add_paragraph(f"- Nivel de riesgo: {details['risk_level'].upper()}")
     doc.add_paragraph(f"- Puntuación de riesgo: {details['risk_score']}/100")
-    doc.add_paragraph(f"- Cláusulas críticas: {len(details['risk_clauses'])}")
+    doc.add_paragraph(f"- Cláusulas/secciones críticas: {len(details['risk_clauses'])}")
     doc.add_paragraph(f"- Fechas encontradas: {len(details.get('dates', []))}")
     doc.add_paragraph(f"\nFecha análisis: {metadata['date'][:19]}")
     doc.add_paragraph(f"Documento: {metadata['filename']}")
@@ -284,7 +304,7 @@ def generate_docx(summary, metadata, details):
     return buffer.getvalue()
 
 # ========== INTERFAZ PRINCIPAL ==========
-uploaded = st.file_uploader("📂 Sube tu contrato (PDF, DOCX o TXT)", type=["pdf", "docx", "txt"])
+uploaded = st.file_uploader("📂 Sube tu documento (contrato, pliego, términos de referencia, etc.)", type=["pdf", "docx", "txt"])
 
 if uploaded:
     filename = uploaded.name
@@ -297,12 +317,11 @@ if uploaded:
     with st.expander("📄 Vista previa del texto extraído"):
         st.text_area("", text[:2000], height=200)
     
-    if st.button("🔍 Analizar contrato", type="primary"):
+    if st.button("🔍 Analizar documento", type="primary"):
         with st.spinner("Analizando con IA..."):
             analysis, details = analyze_contract(text)
         if analysis:
-            # Mostrar resultados con pestañas
-            tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Resumen", "⚖️ Cláusulas", "📅 Fechas y montos", "📊 Dashboard", "📈 Comparar"])
+            tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Resumen", "⚖️ Cláusulas/Secciones", "📅 Fechas y montos", "📊 Dashboard", "📈 Comparar"])
             with tab1:
                 st.markdown(analysis, unsafe_allow_html=True)
             with tab2:
@@ -311,7 +330,7 @@ if uploaded:
                         with st.expander(f"🔍 {clause.capitalize()}"):
                             st.write(contexts[0])
                 else:
-                    st.info("No se detectaron cláusulas críticas.")
+                    st.info("No se detectaron cláusulas o secciones críticas.")
             with tab3:
                 col1, col2 = st.columns(2)
                 with col1:
@@ -334,10 +353,10 @@ if uploaded:
                 if categories:
                     values = [1] * len(categories)
                     fig = go.Figure(data=[go.Bar(x=categories[:5], y=values[:5], marker_color='indianred', text=values, textposition='auto')])
-                    fig.update_layout(title="Cláusulas detectadas (primeras 5)", xaxis_title="Tipo", yaxis_title="Presencia", height=400)
+                    fig.update_layout(title="Secciones críticas detectadas (primeras 5)", xaxis_title="Tipo", yaxis_title="Presencia", height=400)
                     st.plotly_chart(fig, use_container_width=True)
                 else:
-                    st.info("Sin cláusulas de riesgo para graficar.")
+                    st.info("Sin secciones de riesgo para graficar.")
                 fig2 = go.Figure(go.Indicator(
                     mode="gauge+number+delta",
                     value=details["risk_score"],
@@ -353,12 +372,12 @@ if uploaded:
                     fig3 = px.scatter(df_dates, x="Fecha", title="Línea de tiempo de fechas")
                     st.plotly_chart(fig3, use_container_width=True)
             with tab5:
-                st.subheader("Comparador de contratos")
+                st.subheader("Comparador de documentos")
                 colC1, colC2 = st.columns(2)
                 with colC1:
-                    file1 = st.file_uploader("Contrato A", type=["pdf","docx","txt"], key="comp1")
+                    file1 = st.file_uploader("Documento A", type=["pdf","docx","txt"], key="comp1")
                 with colC2:
-                    file2 = st.file_uploader("Contrato B", type=["pdf","docx","txt"], key="comp2")
+                    file2 = st.file_uploader("Documento B", type=["pdf","docx","txt"], key="comp2")
                 if file1 and file2 and st.button("Comparar ahora"):
                     text1 = extract_text(file1)
                     text2 = extract_text(file2)
@@ -371,12 +390,12 @@ if uploaded:
                             st.markdown(f"**{file1.name}**")
                             st.write(f"Partes: {', '.join(det1['entities'].get('PER',[])[:3])}")
                             st.write(f"Riesgo: {det1['risk_level']} ({det1['risk_score']}/100)")
-                            st.write(f"Cláusulas: {len(det1['risk_clauses'])}")
+                            st.write(f"Secciones críticas: {len(det1['risk_clauses'])}")
                         with colR2:
                             st.markdown(f"**{file2.name}**")
                             st.write(f"Partes: {', '.join(det2['entities'].get('PER',[])[:3])}")
                             st.write(f"Riesgo: {det2['risk_level']} ({det2['risk_score']}/100)")
-                            st.write(f"Cláusulas: {len(det2['risk_clauses'])}")
+                            st.write(f"Secciones críticas: {len(det2['risk_clauses'])}")
                     else:
                         st.error("Error al extraer texto.")
             
@@ -396,4 +415,4 @@ if uploaded:
 
 # Footer
 st.markdown("---")
-st.caption("Contract AI Assistant Professional | Análisis legal con IA | Sin licencias | Todos los derechos reservados")
+st.caption("Contract & Tender AI Assistant | Análisis de contratos y documentos de licitación con IA | Sin licencias")
